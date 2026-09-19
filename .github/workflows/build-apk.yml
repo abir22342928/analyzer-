@@ -24,11 +24,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
+          cache: true
 
       - name: Create debug keystore
         run: |
+          rm -f "$GITHUB_WORKSPACE/debug.keystore"
+
           keytool -genkeypair \
-            -v \
             -keystore "$GITHUB_WORKSPACE/debug.keystore" \
             -storepass android \
             -keypass android \
@@ -38,8 +40,28 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
+          echo "Checking keystore..."
+          ls -lh "$GITHUB_WORKSPACE/debug.keystore"
+          keytool -list \
+            -keystore "$GITHUB_WORKSPACE/debug.keystore" \
+            -storepass android
+
+      - name: Clean Gradle cache
+        run: |
+          rm -rf .gradle/configuration-cache
+          rm -rf ~/.gradle/caches/configuration-cache
+
       - name: Build APK
-        run: gradle assembleDebug --no-daemon
+        run: |
+          gradle clean assembleDebug \
+            --no-daemon \
+            --no-configuration-cache \
+            --stacktrace
+
+      - name: Check APK
+        run: |
+          echo "APK files:"
+          find app/build/outputs -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
