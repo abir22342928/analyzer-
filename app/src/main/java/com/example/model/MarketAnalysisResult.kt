@@ -14,5 +14,9 @@ data class MarketAnalysisResult(
     val supportResistance: String,
     val reasons: List<String>,
     val riskFactors: List<String> = emptyList(),
+    val aiBrainInsight: String = "",
+    val nextCandleBengali: String = "",
+    val buyersDominance: Int = 50,
+    val sellersDominance: Int = 50,
     val disclaimer: String = "Algorithmic analysis only. No signal is guaranteed. Trading involves substantial financial risk. The application does not automatically execute trades."
 )

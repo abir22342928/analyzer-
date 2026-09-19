@@ -18,7 +18,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.example.model.MarketAnalysisResult
+import com.example.model.OrderStatus
 import com.example.model.SignalType
+import com.example.trade.AutoTradeEngine
 
 class AnalyzerOverlayView(
     context: Context,
@@ -60,11 +62,10 @@ class AnalyzerOverlayView(
         scannerCanvasView.startScan()
 
         val steps = listOf(
-            "Scanning visible chart...",
-            "Detecting candlestick region...",
-            "Reading market structure...",
-            "Analyzing trend & momentum...",
-            "Calculating multi-factor decision..."
+            "আমি এখন ট্রেডিং চার্ট দেখতে পাচ্ছি এবং এনালাইসিস করছি...",
+            "ক্যান্ডেলস্টিক প্যাটার্ন স্ক্যান করা হচ্ছে...",
+            "বায়ার্স ও সেলার্স ভলিউম প্রেশার বিশ্লেষণ...",
+            "AI ব্রেন পরবর্তী ক্যান্ডেল (UP/DOWN) নির্ধারণ করছে..."
         )
 
         val statusCard = LinearLayout(context).apply {
@@ -186,15 +187,14 @@ class AnalyzerOverlayView(
 
         // Signal Badge
         val signalColor = when (result.signal) {
-            SignalType.POSSIBLE_UP -> Color.parseColor("#00E676")
-            SignalType.POSSIBLE_DOWN -> Color.parseColor("#FF5252")
-            SignalType.WAIT -> Color.parseColor("#FFD600")
+            SignalType.UP -> Color.parseColor("#00E676")
+            SignalType.DOWN -> Color.parseColor("#FF5252")
         }
 
         val signalBadge = TextView(context).apply {
             text = "${result.signal.badge} ${result.signal.title}"
             setTextColor(signalColor)
-            textSize = 24f
+            textSize = 26f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setPadding(0, 16, 0, 8)
@@ -208,9 +208,84 @@ class AnalyzerOverlayView(
             textSize = 15f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setPadding(0, 0, 0, 20)
+            setPadding(0, 0, 0, 8)
         }
         rootLayout.addView(scoreTv)
+
+        // Bengali Next Candle Prediction & AI Brain Banner
+        val bengaliPredictionCard = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(20, 16, 20, 16)
+            background = GradientDrawable().apply {
+                setColor(if (result.signal == SignalType.UP) Color.parseColor("#1A00E676") else Color.parseColor("#1AFF5252"))
+                cornerRadius = 14f
+                setStroke(2, if (result.signal == SignalType.UP) Color.parseColor("#00E676") else Color.parseColor("#FF5252"))
+            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 0, 0, 14)
+            }
+        }
+
+        val bnVerdictTv = TextView(context).apply {
+            text = if (result.nextCandleBengali.isNotBlank()) result.nextCandleBengali else if (result.signal == SignalType.UP) "পরবর্তী ক্যান্ডেল: আপ (UP) 🟢" else "পরবর্তী ক্যান্ডেল: ডাউন (DOWN) 🔴"
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+        bengaliPredictionCard.addView(bnVerdictTv)
+
+        if (result.aiBrainInsight.isNotBlank()) {
+            val aiBrainTv = TextView(context).apply {
+                text = "🧠 ${result.aiBrainInsight}"
+                setTextColor(Color.parseColor("#CBD5E1"))
+                textSize = 12f
+                gravity = Gravity.CENTER
+                setPadding(0, 8, 0, 0)
+                lineSpacingExtra = 4f
+            }
+            bengaliPredictionCard.addView(aiBrainTv)
+        }
+
+        rootLayout.addView(bengaliPredictionCard)
+
+        // Auto Trade status badge if enabled
+        val autoTradeCfg = AutoTradeEngine.config.value
+        if (autoTradeCfg.enabled) {
+            val lastTrade = AutoTradeEngine.lastExecutedTrade.value
+            val isWin = lastTrade?.status == OrderStatus.CLOSED_WIN
+            val autoTradeBanner = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(16, 12, 16, 12)
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor(if (isWin) "#1A00E676" else "#1AFF5252"))
+                    cornerRadius = 10f
+                    setStroke(2, Color.parseColor(if (isWin) "#00E676" else "#FF5252"))
+                }
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    setMargins(0, 0, 0, 16)
+                }
+            }
+
+            val autoTradeTitle = TextView(context).apply {
+                text = "⚡ AUTO TRADE EXECUTED"
+                setTextColor(Color.parseColor(if (isWin) "#00E676" else "#FF5252"))
+                textSize = 12f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+            }
+            val autoTradeDetail = TextView(context).apply {
+                val pnlText = if (lastTrade != null) "PnL: ${if (lastTrade.pnl >= 0) "+$" else "-$"}${kotlin.math.abs(lastTrade.pnl)}" else "Order Filled"
+                text = "$pnlText • Size: $${autoTradeCfg.tradeAmount} • Entry: ${lastTrade?.entryPrice ?: 0.0}"
+                setTextColor(Color.WHITE)
+                textSize = 11f
+                gravity = Gravity.CENTER
+                setPadding(0, 4, 0, 0)
+            }
+            autoTradeBanner.addView(autoTradeTitle)
+            autoTradeBanner.addView(autoTradeDetail)
+            rootLayout.addView(autoTradeBanner)
+        }
 
         // Separator
         val divider = View(context).apply {
@@ -397,9 +472,9 @@ class AnalyzerOverlayView(
         }
 
         val titleTv = TextView(context).apply {
-            text = "CHART NOT DETECTED"
+            text = "ট্রেডিং চার্ট ডিটেক্ট হয়নি"
             setTextColor(Color.parseColor("#FF5252"))
-            textSize = 16f
+            textSize = 17f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             setPadding(0, 12, 0, 8)

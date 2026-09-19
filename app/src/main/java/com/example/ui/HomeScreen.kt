@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.AutoMode
 import androidx.compose.material.icons.filled.CandlestickChart
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -74,6 +75,7 @@ fun HomeScreen(
     onStopAnalyzer: () -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onNavigateToSimulator: () -> Unit,
+    onNavigateToAutoTrade: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToAbout: () -> Unit
@@ -304,9 +306,8 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     val (sigColor, sigText) = when (res.signal) {
-                        SignalType.POSSIBLE_UP -> BullishGreen to "🟢 POSSIBLE UP"
-                        SignalType.POSSIBLE_DOWN -> BearishRed to "🔴 POSSIBLE DOWN"
-                        SignalType.WAIT -> WarningAmber to "🟡 WAIT"
+                        SignalType.UP -> BullishGreen to "🟢 UP"
+                        SignalType.DOWN -> BearishRed to "🔴 DOWN"
                     }
 
                     Text(
@@ -336,6 +337,15 @@ fun HomeScreen(
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
         )
+
+        NavigationActionItem(
+            title = "Auto Trade Bot",
+            subtitle = "Automatic UP/DOWN trade execution on high-confidence signals",
+            icon = Icons.Default.AutoMode,
+            tint = BullishGreen,
+            onClick = onNavigateToAutoTrade
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
         NavigationActionItem(
             title = "Live Chart Sandbox / Simulator",

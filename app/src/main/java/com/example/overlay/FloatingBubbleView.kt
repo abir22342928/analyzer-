@@ -13,6 +13,7 @@ import android.view.View
 import android.view.WindowManager
 import com.example.model.BubbleState
 import com.example.model.SignalType
+import com.example.trade.AutoTradeEngine
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -173,9 +174,8 @@ class FloatingBubbleView(
             BubbleState.READY -> Color.parseColor("#00E676")
             BubbleState.ANALYZING -> Color.parseColor("#00E5FF")
             BubbleState.RESULT -> when (lastSignal) {
-                SignalType.POSSIBLE_UP -> Color.parseColor("#00E676")
-                SignalType.POSSIBLE_DOWN -> Color.parseColor("#FF5252")
-                SignalType.WAIT -> Color.parseColor("#FFD600")
+                SignalType.UP -> Color.parseColor("#00E676")
+                SignalType.DOWN -> Color.parseColor("#FF5252")
                 null -> Color.parseColor("#00E676")
             }
             BubbleState.ERROR -> Color.parseColor("#FF5252")
@@ -198,9 +198,8 @@ class FloatingBubbleView(
             }
             BubbleState.RESULT -> {
                 val badgeText = when (lastSignal) {
-                    SignalType.POSSIBLE_UP -> "UP ▲"
-                    SignalType.POSSIBLE_DOWN -> "DN ▼"
-                    SignalType.WAIT -> "WAIT"
+                    SignalType.UP -> "UP ▲"
+                    SignalType.DOWN -> "DN ▼"
                     null -> "AI"
                 }
                 textPaint.color = borderPaint.color
@@ -214,6 +213,24 @@ class FloatingBubbleView(
                 textPaint.color = Color.parseColor("#94A3B8")
                 canvas.drawText("OFF", cx, cy - yOffset, textPaint)
             }
+        }
+
+        // If Auto Trade Bot is active, draw a glowing badge dot in top-right corner
+        if (AutoTradeEngine.config.value.enabled) {
+            val autoTradeDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#00E676")
+                style = Paint.Style.FILL
+            }
+            val dotX = cx + radius * 0.65f
+            val dotY = cy - radius * 0.65f
+            canvas.drawCircle(dotX, dotY, 9f, autoTradeDotPaint)
+
+            val autoTradeDotBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#0F172A")
+                style = Paint.Style.STROKE
+                strokeWidth = 3f
+            }
+            canvas.drawCircle(dotX, dotY, 9f, autoTradeDotBorder)
         }
     }
 }

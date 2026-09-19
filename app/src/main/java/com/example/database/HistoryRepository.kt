@@ -14,7 +14,10 @@ class HistoryRepository(private val dao: AnalysisHistoryDao) {
                 timestamp = entity.timestamp,
                 asset = entity.asset,
                 timeframe = entity.timeframe,
-                signal = runCatching { SignalType.valueOf(entity.signal) }.getOrDefault(SignalType.WAIT),
+                signal = when (entity.signal) {
+                    "DOWN", "POSSIBLE_DOWN" -> SignalType.DOWN
+                    else -> SignalType.UP
+                },
                 score = entity.score,
                 trend = entity.trend,
                 momentum = entity.momentum,

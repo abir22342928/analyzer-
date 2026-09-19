@@ -134,8 +134,8 @@ fun HistoryScreen(
                     )
                 )
                 FilterChip(
-                    selected = selectedFilter == SignalType.POSSIBLE_UP,
-                    onClick = { selectedFilter = SignalType.POSSIBLE_UP },
+                    selected = selectedFilter == SignalType.UP,
+                    onClick = { selectedFilter = SignalType.UP },
                     label = { Text("🟢 UP") },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = BullishGreen,
@@ -143,21 +143,12 @@ fun HistoryScreen(
                     )
                 )
                 FilterChip(
-                    selected = selectedFilter == SignalType.POSSIBLE_DOWN,
-                    onClick = { selectedFilter = SignalType.POSSIBLE_DOWN },
+                    selected = selectedFilter == SignalType.DOWN,
+                    onClick = { selectedFilter = SignalType.DOWN },
                     label = { Text("🔴 DOWN") },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = BearishRed,
                         selectedLabelColor = Color.White
-                    )
-                )
-                FilterChip(
-                    selected = selectedFilter == SignalType.WAIT,
-                    onClick = { selectedFilter = SignalType.WAIT },
-                    label = { Text("🟡 WAIT") },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = WarningAmber,
-                        selectedLabelColor = Color.Black
                     )
                 )
             }
@@ -251,9 +242,8 @@ private fun HistoryCardItem(
             Spacer(modifier = Modifier.height(6.dp))
 
             val (sigColor, sigText) = when (item.signal) {
-                SignalType.POSSIBLE_UP -> BullishGreen to "🟢 POSSIBLE UP"
-                SignalType.POSSIBLE_DOWN -> BearishRed to "🔴 POSSIBLE DOWN"
-                SignalType.WAIT -> WarningAmber to "🟡 WAIT"
+                SignalType.UP -> BullishGreen to "🟢 UP"
+                SignalType.DOWN -> BearishRed to "🔴 DOWN"
             }
 
             Row(

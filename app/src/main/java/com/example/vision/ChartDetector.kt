@@ -19,7 +19,7 @@ object ChartDetector {
         if (bitmap == null || bitmap.width < 50 || bitmap.height < 50) {
             return ChartDetectionResult(
                 detected = false,
-                errorMessage = "Screen capture frame is unavailable. Please try again."
+                errorMessage = "আমি কোন ট্রেডিং চার্ট দেখতে পারছি না। দয়া করে আপনার কোটেক্স ট্রেডিং চার্টটি খুলুন।"
             )
         }
 
@@ -90,11 +90,11 @@ object ChartDetector {
         val lightRatio = lightCanvasPixels.toFloat() / totalValidPixels
         val hasTradingCanvas = darkRatio > 0.18f || lightRatio > 0.18f
 
-        // If very few candle pixels and no recognizable canvas, guide the user to the simulator or trading app
-        if (totalCandlePixels < 40 && !hasTradingCanvas && candleRatio < 0.001f) {
+        // If very few candle pixels or no recognizable canvas, trading chart is not open
+        if (totalCandlePixels < 40 || (!hasTradingCanvas && candleRatio < 0.0015f)) {
             return ChartDetectionResult(
                 detected = false,
-                errorMessage = "No trading chart detected on current screen.\n\nPlease open your trading app (TradingView, MT4/5, Binance, etc.) or test with our built-in Chart Simulator."
+                errorMessage = "আমি কোন ট্রেডিং চার্ট দেখতে পারছি না। দয়া করে আপনার কোটেক্স ট্রেডিং চার্টটি খুলুন।"
             )
         }
 

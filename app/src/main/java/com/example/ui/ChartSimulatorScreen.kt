@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -57,6 +59,8 @@ import com.example.model.CandleModel
 import com.example.model.ChartDetectionResult
 import com.example.model.MarketAnalysisResult
 import com.example.model.SignalType
+import com.example.trade.AutoTradeEngine
+import com.example.voice.AiVoiceSpeaker
 import com.example.ui.theme.BearishRed
 import com.example.ui.theme.BullishGreen
 import com.example.ui.theme.CyberCyan
@@ -250,6 +254,7 @@ fun ChartSimulatorScreen(
                         val result = TechnicalAnalysisEngine.analyzeChart(detection)
                         analysisResult = result
                         onSaveToHistory(result)
+                        AutoTradeEngine.evaluateAndExecute(result)
                         isScanning = false
                     }
                 },
@@ -296,9 +301,8 @@ fun ChartSimulatorScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         val (sigColor, sigText) = when (result.signal) {
-                            SignalType.POSSIBLE_UP -> BullishGreen to "🟢 POSSIBLE UP"
-                            SignalType.POSSIBLE_DOWN -> BearishRed to "🔴 POSSIBLE DOWN"
-                            SignalType.WAIT -> WarningAmber to "🟡 WAIT"
+                            SignalType.UP -> BullishGreen to "🟢 UP"
+                            SignalType.DOWN -> BearishRed to "🔴 DOWN"
                         }
 
                         Text(
@@ -312,8 +316,43 @@ fun ChartSimulatorScreen(
                             color = TextPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 2.dp, bottom = 14.dp)
+                            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
                         )
+
+                        // Auto Trade Execution notification badge
+                        if (AutoTradeEngine.config.value.enabled) {
+                            val lastTrade = AutoTradeEngine.lastExecutedTrade.value
+                            if (lastTrade != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 12.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (lastTrade.pnl >= 0) Color(0x2200E676) else Color(0x22FF5252))
+                                        .border(1.dp, if (lastTrade.pnl >= 0) BullishGreen else BearishRed, RoundedCornerShape(8.dp))
+                                        .padding(10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "⚡ Auto Trade: ${lastTrade.direction.name} @ ${lastTrade.entryPrice}",
+                                            color = TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "${if (lastTrade.pnl >= 0) "+$" else "-$"}${String.format(java.util.Locale.US, "%.2f", kotlin.math.abs(lastTrade.pnl))}",
+                                            color = if (lastTrade.pnl >= 0) BullishGreen else BearishRed,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                    }
+                                }
+                            }
+                        }
 
                         Text(text = "Trend: ${result.trend}", color = TextSecondary, fontSize = 12.sp)
                         Text(text = "Momentum: ${result.momentum}", color = TextSecondary, fontSize = 12.sp)

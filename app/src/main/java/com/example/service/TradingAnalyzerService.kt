@@ -22,11 +22,14 @@ import com.example.R
 import com.example.analysis.TechnicalAnalysisEngine
 import com.example.capture.ScreenCaptureManager
 import com.example.database.AppDatabase
+import com.example.database.AutoTradeRepository
 import com.example.database.HistoryRepository
 import com.example.model.BubbleState
 import com.example.model.MarketAnalysisResult
 import com.example.overlay.FloatingBubbleManager
+import com.example.trade.AutoTradeEngine
 import com.example.vision.ChartDetector
+import com.example.voice.AiVoiceSpeaker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -74,6 +77,8 @@ class TradingAnalyzerService : Service() {
 
         val db = AppDatabase.getDatabase(this)
         historyRepository = HistoryRepository(db.analysisHistoryDao())
+        AutoTradeEngine.initialize(this, AutoTradeRepository(db.autoTradeDao()))
+        AiVoiceSpeaker.initialize(this)
 
         floatingBubbleManager = FloatingBubbleManager(
             context = this,
@@ -195,19 +200,13 @@ class TradingAnalyzerService : Service() {
                 screenCaptureManager?.captureFrame(timeoutMs = 2500L)
             }
 
-            // Show futuristic scanning reticle overlay
-            floatingBubbleManager?.showScanningOverlay()
-
             if (frameBitmap == null) {
-                floatingBubbleManager?.showAnalysisError(
-                    "Screen capture frame is unavailable. Please ensure screen recording permission is active."
-                )
+                val errorMsg = "আমি কোন ট্রেডিং চার্ট দেখতে পারছি না। দয়া করে আপনার কোটেক্স ট্রেডিং চার্টটি খুলুন।"
+                floatingBubbleManager?.showAnalysisError(errorMsg)
+                AiVoiceSpeaker.speakNoChartDetected()
                 _bubbleState.value = BubbleState.ERROR
                 return@launch
             }
-
-            // Allow scanning reticle animation to play for smooth UX
-            delay(750)
 
             processBitmap(frameBitmap)
         }
@@ -222,13 +221,23 @@ class TradingAnalyzerService : Service() {
         bitmap.recycle()
 
         if (!detectionResult.detected) {
-            floatingBubbleManager?.showAnalysisError(
-                detectionResult.errorMessage
-                    ?: "Trading chart could not be detected. Please make the chart larger and try again."
-            )
+            val errorMsg = detectionResult.errorMessage
+                ?: "আমি কোন ট্রেডিং চার্ট দেখতে পারছি না। দয়া করে আপনার কোটেক্স ট্রেডিং চার্টটি খুলুন।"
+            floatingBubbleManager?.showAnalysisError(errorMsg)
+            AiVoiceSpeaker.speakNoChartDetected()
             _bubbleState.value = BubbleState.ERROR
             return
         }
+
+        // Trading chart is detected! Announce AI voice prompt:
+        // "আমি এখন ট্রেডিং চার্ট দেখতে পাচ্ছি এবং এনালাইসিস করছি। পরবর্তী ক্যান্ডেল আপ বা ডাউন হতে পারে।"
+        AiVoiceSpeaker.speakChartDetectedAndAnalyzing()
+
+        // Show futuristic scanning reticle overlay
+        floatingBubbleManager?.showScanningOverlay()
+
+        // Allow scanning reticle animation to play for smooth UX and AI brain processing
+        delay(1200)
 
         val analysisResult = withContext(Dispatchers.Default) {
             TechnicalAnalysisEngine.analyzeChart(detectionResult)
@@ -236,6 +245,21 @@ class TradingAnalyzerService : Service() {
 
         _latestResult.value = analysisResult
         _bubbleState.value = BubbleState.RESULT
+
+        // Speak prediction:
+        // "এনালাইসিস সম্পন্ন হয়েছে। পরবর্তী ক্যান্ডেল [আপ / ডাউন] হবে। কনফিডেন্স স্কোর [X] শতাংশ।"
+        AiVoiceSpeaker.speakPrediction(
+            signal = analysisResult.signal,
+            score = analysisResult.score,
+            pattern = analysisResult.pattern
+        )
+
+        // If Auto Trade is enabled, immediately trigger auto trade order
+        val autoTradeOrder = AutoTradeEngine.evaluateAndExecute(analysisResult)
+        if (autoTradeOrder != null) {
+            Log.d("TradingAnalyzerService", "Auto Trade executed: ${autoTradeOrder.direction} at ${autoTradeOrder.entryPrice}")
+        }
+
         floatingBubbleManager?.showAnalysisResult(analysisResult)
 
         // Haptic feedback

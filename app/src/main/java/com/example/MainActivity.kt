@@ -32,11 +32,14 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.database.AppDatabase
+import com.example.database.AutoTradeRepository
 import com.example.database.HistoryRepository
 import com.example.model.AppSettings
 import com.example.model.MarketAnalysisResult
 import com.example.service.TradingAnalyzerService
+import com.example.trade.AutoTradeEngine
 import com.example.ui.AboutScreen
+import com.example.ui.AutoTradeScreen
 import com.example.ui.ChartSimulatorScreen
 import com.example.ui.HistoryScreen
 import com.example.ui.HomeScreen
@@ -49,6 +52,7 @@ import kotlinx.coroutines.withContext
 enum class AppScreen {
     HOME,
     SIMULATOR,
+    AUTO_TRADE,
     HISTORY,
     SETTINGS,
     ABOUT
@@ -63,6 +67,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var historyRepository: HistoryRepository
+    private lateinit var autoTradeRepository: AutoTradeRepository
     private var screenNavigationCallback: ((AppScreen) -> Unit)? = null
 
     override fun onNewIntent(intent: Intent) {
@@ -84,6 +89,9 @@ class MainActivity : ComponentActivity() {
         prefs = getSharedPreferences("trading_analyzer_prefs", Context.MODE_PRIVATE)
         val db = AppDatabase.getDatabase(this)
         historyRepository = HistoryRepository(db.analysisHistoryDao())
+        autoTradeRepository = AutoTradeRepository(db.autoTradeDao())
+        AutoTradeEngine.initialize(this, autoTradeRepository)
+        com.example.voice.AiVoiceSpeaker.initialize(this)
 
         setContent {
             val initial = if (intent?.getStringExtra(EXTRA_OPEN_SCREEN) == SCREEN_SIMULATOR) {
@@ -143,6 +151,8 @@ class MainActivity : ComponentActivity() {
             val latestResult by TradingAnalyzerService.latestResult.collectAsStateWithLifecycle()
             val bubbleState by TradingAnalyzerService.bubbleState.collectAsStateWithLifecycle()
             val historyList by historyRepository.allHistory.collectAsStateWithLifecycle(initialValue = emptyList())
+            val autoTradeOrders by autoTradeRepository.allTrades.collectAsStateWithLifecycle(initialValue = emptyList())
+            val autoTradeConfig by AutoTradeEngine.config.collectAsStateWithLifecycle()
 
             // Screen Capture Intent Launcher
             val screenCaptureLauncher = rememberLauncherForActivityResult(
@@ -231,6 +241,7 @@ class MainActivity : ComponentActivity() {
                                 overlayPermissionLauncher.launch(intent)
                             },
                             onNavigateToSimulator = { currentScreen = AppScreen.SIMULATOR },
+                            onNavigateToAutoTrade = { currentScreen = AppScreen.AUTO_TRADE },
                             onNavigateToHistory = { currentScreen = AppScreen.HISTORY },
                             onNavigateToSettings = { currentScreen = AppScreen.SETTINGS },
                             onNavigateToAbout = { currentScreen = AppScreen.ABOUT }
@@ -243,6 +254,25 @@ class MainActivity : ComponentActivity() {
                                     historyRepository.saveResult(res)
                                 }
                             }
+                        )
+
+                        AppScreen.AUTO_TRADE -> AutoTradeScreen(
+                            config = autoTradeConfig,
+                            orders = autoTradeOrders,
+                            onConfigChanged = { newConfig ->
+                                AutoTradeEngine.updateConfig(newConfig)
+                            },
+                            onDeleteOrder = { id ->
+                                scope.launch(Dispatchers.IO) {
+                                    autoTradeRepository.deleteTradeById(id)
+                                }
+                            },
+                            onClearAllOrders = {
+                                scope.launch(Dispatchers.IO) {
+                                    autoTradeRepository.clearAllTrades()
+                                }
+                            },
+                            onNavigateBack = { currentScreen = AppScreen.HOME }
                         )
 
                         AppScreen.HISTORY -> HistoryScreen(
