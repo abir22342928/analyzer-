@@ -1,0 +1,6 @@
+{
+  "name": "Trading Analyzer",
+  "description": "AI Trading Screen Analyzer native Android app with floating bubble, screen chart detection, technical indicator analysis, and next candle prediction.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

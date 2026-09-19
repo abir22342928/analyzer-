@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Red Bearish Candle -->
+    <!-- Wick -->
+    <path
+        android:pathData="M38,32v44"
+        android:strokeWidth="2"
+        android:strokeColor="#FF5252" />
+    <!-- Body -->
+    <path
+        android:pathData="M33,40h10v22h-10z"
+        android:fillColor="#FF5252" />
+
+    <!-- Green Bullish Candle 1 -->
+    <!-- Wick -->
+    <path
+        android:pathData="M54,26v54"
+        android:strokeWidth="2"
+        android:strokeColor="#00E676" />
+    <!-- Body -->
+    <path
+        android:pathData="M49,38h10v28h-10z"
+        android:fillColor="#00E676" />
+
+    <!-- Green Bullish Candle 2 (Breakout) -->
+    <!-- Wick -->
+    <path
+        android:pathData="M70,22v48"
+        android:strokeWidth="2"
+        android:strokeColor="#00E676" />
+    <!-- Body -->
+    <path
+        android:pathData="M65,30h10v26h-10z"
+        android:fillColor="#00E676" />
+
+    <!-- AI Scanner Radar Line -->
+    <path
+        android:pathData="M24,54h60"
+        android:strokeWidth="2.5"
+        android:strokeColor="#00E5FF" />
+
+    <!-- Glowing Target / Prediction Reticle -->
+    <path
+        android:pathData="M70,22l4,-4 M70,22l-4,-4 M70,22v6"
+        android:strokeWidth="2.5"
+        android:strokeColor="#00E676" />
+
+    <!-- Scanner Corner Brackets -->
+    <path
+        android:pathData="M26,34v-8h8 M74,26h8v8 M82,74v8h-8 M34,82h-8v-8"
+        android:strokeWidth="2"
+        android:strokeColor="#00E5FF" />
+</vector>
+
