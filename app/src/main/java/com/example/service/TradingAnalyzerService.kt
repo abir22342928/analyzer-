@@ -82,6 +82,13 @@ class TradingAnalyzerService : Service() {
             },
             onStopService = {
                 stopSelf()
+            },
+            onOpenSimulator = {
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(MainActivity.EXTRA_OPEN_SCREEN, MainActivity.SCREEN_SIMULATOR)
+                }
+                startActivity(intent)
             }
         )
     }
@@ -180,29 +187,29 @@ class TradingAnalyzerService : Service() {
         floatingBubbleManager?.setBubbleState(BubbleState.ANALYZING)
 
         serviceScope.launch {
-            // Briefly delay to let overlay / scrim settle if needed
-            delay(350)
+            // Hide overlay if already visible so screenshot captures the clean chart
+            floatingBubbleManager?.setOverlayInvisible(true)
+            delay(100)
 
             val frameBitmap = withContext(Dispatchers.IO) {
-                screenCaptureManager?.captureFrame()
+                screenCaptureManager?.captureFrame(timeoutMs = 2500L)
             }
+
+            // Show futuristic scanning reticle overlay
+            floatingBubbleManager?.showScanningOverlay()
 
             if (frameBitmap == null) {
-                // If direct screen capture is null (e.g. system buffer not ready yet), try once more
-                delay(200)
-                val retryBitmap = withContext(Dispatchers.IO) {
-                    screenCaptureManager?.captureFrame()
-                }
-
-                if (retryBitmap == null) {
-                    floatingBubbleManager?.showAnalysisError("Screen capture frame is unavailable. Please try again.")
-                    _bubbleState.value = BubbleState.ERROR
-                    return@launch
-                }
-                processBitmap(retryBitmap)
-            } else {
-                processBitmap(frameBitmap)
+                floatingBubbleManager?.showAnalysisError(
+                    "Screen capture frame is unavailable. Please ensure screen recording permission is active."
+                )
+                _bubbleState.value = BubbleState.ERROR
+                return@launch
             }
+
+            // Allow scanning reticle animation to play for smooth UX
+            delay(750)
+
+            processBitmap(frameBitmap)
         }
     }
 

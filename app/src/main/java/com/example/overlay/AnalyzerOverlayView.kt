@@ -24,13 +24,18 @@ class AnalyzerOverlayView(
     context: Context,
     private val onCancel: () -> Unit,
     private val onAnalyzeAgain: () -> Unit,
-    private val onClose: () -> Unit
+    private val onClose: () -> Unit,
+    private val onOpenSimulator: () -> Unit = {}
 ) : FrameLayout(context) {
 
     private val scannerCanvasView: ScannerCanvasView
     private val contentContainer: FrameLayout
     private val handler = Handler(Looper.getMainLooper())
     private var scanStepRunnable: Runnable? = null
+
+    fun setInvisibleForCapture(invisible: Boolean) {
+        visibility = if (invisible) View.INVISIBLE else View.VISIBLE
+    }
 
     init {
         setBackgroundColor(Color.parseColor("#B3050B14")) // 70% dark scrim
@@ -408,9 +413,48 @@ class AnalyzerOverlayView(
             setPadding(0, 0, 0, 24)
         }
 
+        val btnColumn = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val simulatorBtn = TextView(context).apply {
+            text = "▶  OPEN CHART SIMULATOR"
+            setTextColor(Color.parseColor("#00E5FF"))
+            textSize = 13f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setPadding(28, 14, 28, 14)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1A00E5FF"))
+                cornerRadius = 12f
+                setStroke(2, Color.parseColor("#00E5FF"))
+            }
+            isClickable = true
+            isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 12)
+            }
+            setOnClickListener {
+                onClose()
+                onOpenSimulator()
+            }
+        }
+
         val btnRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val retryBtn = TextView(context).apply {
@@ -418,15 +462,16 @@ class AnalyzerOverlayView(
             setTextColor(Color.parseColor("#00E676"))
             textSize = 13f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(24, 12, 24, 12)
+            gravity = Gravity.CENTER
+            setPadding(24, 14, 24, 14)
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#2200E676"))
                 cornerRadius = 12f
             }
             isClickable = true
             isFocusable = true
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener {
-                showScanningState()
                 onAnalyzeAgain()
             }
         }
@@ -436,18 +481,16 @@ class AnalyzerOverlayView(
             setTextColor(Color.WHITE)
             textSize = 13f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(24, 12, 24, 12)
+            gravity = Gravity.CENTER
+            setPadding(24, 14, 24, 14)
             background = GradientDrawable().apply {
                 setColor(Color.parseColor("#334155"))
                 cornerRadius = 12f
             }
             isClickable = true
             isFocusable = true
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(16, 0, 0, 0)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                setMargins(12, 0, 0, 0)
             }
             setOnClickListener {
                 onClose()
@@ -456,11 +499,13 @@ class AnalyzerOverlayView(
 
         btnRow.addView(retryBtn)
         btnRow.addView(closeBtn)
+        btnColumn.addView(simulatorBtn)
+        btnColumn.addView(btnRow)
 
         layout.addView(iconTv)
         layout.addView(titleTv)
         layout.addView(msgTv)
-        layout.addView(btnRow)
+        layout.addView(btnColumn)
         cardView.addView(layout)
         contentContainer.addView(cardView)
     }

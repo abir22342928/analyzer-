@@ -1,9 +1,7 @@
 package com.example.overlay
 
 import android.content.Context
-import android.content.Intent
 import android.graphics.PixelFormat
-import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -19,7 +17,8 @@ import com.example.model.MarketAnalysisResult
 class FloatingBubbleManager(
     private val context: Context,
     private val onTriggerAnalysis: () -> Unit,
-    private val onStopService: () -> Unit
+    private val onStopService: () -> Unit,
+    private val onOpenSimulator: () -> Unit = {}
 ) {
     private val windowManager: WindowManager =
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -67,7 +66,9 @@ class FloatingBubbleManager(
                 windowManager = windowManager,
                 layoutParams = layoutParams,
                 onTap = {
-                    showOverlayAndAnalyze()
+                    // Start screen analysis without covering screen yet
+                    setBubbleState(BubbleState.ANALYZING)
+                    onTriggerAnalysis()
                 },
                 onLongPress = {
                     showQuickMenu()
@@ -89,7 +90,16 @@ class FloatingBubbleManager(
         }
     }
 
-    fun showOverlayAndAnalyze() {
+    /**
+     * Temporarily hides or restores the overlay so screen capture captures clean chart
+     */
+    fun setOverlayInvisible(invisible: Boolean) {
+        mainHandler.post {
+            overlayView?.setInvisibleForCapture(invisible)
+        }
+    }
+
+    fun showScanningOverlay() {
         mainHandler.post {
             if (!canDrawOverlays()) return@post
 
@@ -121,6 +131,11 @@ class FloatingBubbleManager(
                     onClose = {
                         hideOverlay()
                         setBubbleState(BubbleState.READY)
+                    },
+                    onOpenSimulator = {
+                        hideOverlay()
+                        setBubbleState(BubbleState.READY)
+                        onOpenSimulator()
                     }
                 )
 
@@ -130,10 +145,10 @@ class FloatingBubbleManager(
                 } catch (e: Exception) {
                     Log.e("FloatingBubbleManager", "Failed to add overlay: ${e.message}", e)
                 }
+            } else {
+                overlayView?.setInvisibleForCapture(false)
+                overlayView?.showScanningState()
             }
-
-            setBubbleState(BubbleState.ANALYZING)
-            onTriggerAnalysis()
         }
     }
 
@@ -143,8 +158,9 @@ class FloatingBubbleManager(
             bubbleView?.lastSignal = result.signal
 
             if (!isOverlayAttached) {
-                showOverlayAndAnalyze()
+                showScanningOverlay()
             }
+            overlayView?.setInvisibleForCapture(false)
             overlayView?.showResult(result)
         }
     }
@@ -152,6 +168,11 @@ class FloatingBubbleManager(
     fun showAnalysisError(message: String) {
         mainHandler.post {
             bubbleView?.state = BubbleState.ERROR
+
+            if (!isOverlayAttached) {
+                showScanningOverlay()
+            }
+            overlayView?.setInvisibleForCapture(false)
             overlayView?.showError(message)
         }
     }
@@ -188,7 +209,7 @@ class FloatingBubbleManager(
     private fun showQuickMenu() {
         Toast.makeText(
             context,
-            "AI Analyzer: Tap to scan chart | Hold to view status",
+            "AI Analyzer: Tap bubble to scan chart",
             Toast.LENGTH_SHORT
         ).show()
     }

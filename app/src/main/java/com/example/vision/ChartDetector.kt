@@ -12,78 +12,98 @@ object ChartDetector {
 
     /**
      * Inspects the captured screen bitmap for candlestick chart characteristics.
-     * Searches for alternating green/red vertical candles, wicks, and chart grid structure.
+     * Supports Dark & Light chart themes and multiple trading color schemes:
+     * (TradingView Teal/Crimson, MT4 Green/Red, Binance Neon, Blue/Orange, etc.)
      */
     fun detectChart(bitmap: Bitmap?): ChartDetectionResult {
         if (bitmap == null || bitmap.width < 50 || bitmap.height < 50) {
             return ChartDetectionResult(
                 detected = false,
-                errorMessage = "Screen frame could not be captured."
+                errorMessage = "Screen capture frame is unavailable. Please try again."
             )
         }
 
-        // Subsample for fast, lightweight processing in memory
-        val sampleWidth = 320
-        val sampleHeight = (bitmap.height.toFloat() / bitmap.width * sampleWidth).toInt().coerceIn(200, 640)
-        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, sampleWidth, sampleHeight, false)
-
-        val greenColumns = mutableListOf<Int>()
-        val redColumns = mutableListOf<Int>()
-        var greenPixelCount = 0
-        var redPixelCount = 0
-        var darkBackgroundPixels = 0
-        val totalPixels = sampleWidth * sampleHeight
+        // Subsample for fast, lightweight processing in memory with bilinear filtering
+        val sampleWidth = 360
+        val sampleHeight = (bitmap.height.toFloat() / bitmap.width * sampleWidth).toInt().coerceIn(240, 720)
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, sampleWidth, sampleHeight, true)
 
         val pixels = IntArray(sampleWidth * sampleHeight)
         scaledBitmap.getPixels(pixels, 0, sampleWidth, 0, 0, sampleWidth, sampleHeight)
+        scaledBitmap.recycle()
 
-        // Color thresholds
-        for (y in 0 until sampleHeight) {
+        // Exclude system bars (top 7% for status bar, bottom 7% for navigation bar)
+        val startY = (sampleHeight * 0.07f).toInt()
+        val endY = (sampleHeight * 0.93f).toInt()
+        val totalValidPixels = sampleWidth * (endY - startY)
+
+        var greenPixelCount = 0
+        var redPixelCount = 0
+        var darkCanvasPixels = 0
+        var lightCanvasPixels = 0
+        val candleColumns = mutableListOf<Int>()
+
+        for (y in startY until endY) {
+            val rowOffset = y * sampleWidth
             for (x in 0 until sampleWidth) {
-                val pixel = pixels[y * sampleWidth + x]
+                val pixel = pixels[rowOffset + x]
                 val r = Color.red(pixel)
                 val g = Color.green(pixel)
                 val b = Color.blue(pixel)
 
-                // Check background
-                if (r < 40 && g < 40 && b < 45) {
-                    darkBackgroundPixels++
+                // Dark trading background (MetaTrader dark, TradingView dark, Binance, etc.)
+                if (r < 55 && g < 55 && b < 65) {
+                    darkCanvasPixels++
+                }
+                // Light trading background (TradingView light, MT4 light, Web charts)
+                else if (r > 200 && g > 200 && b > 200) {
+                    lightCanvasPixels++
                 }
 
-                // Check green candlestick color (e.g., #00E676, #26A69A, #4CAF50)
-                if (g > 110 && g > r + 30 && g > b + 20) {
+                // Check bullish candle colors
+                // 1) Standard / Neon Green (#00E676, #00FF00, #4CAF50)
+                // 2) TradingView Teal / Turquoise (#26A69A, #089981)
+                // 3) Blue Bullish (#2962FF, #2196F3)
+                val isBullishPixel = (g > 95 && g > r + 20 && g > b + 15) ||
+                        (g > 105 && g > r + 30 && g >= b - 25) ||
+                        (b > 125 && b > r + 35 && b > g + 15)
+
+                // Check bearish candle colors
+                // 1) Standard Red / Crimson (#FF5252, #E53935, #D32F2F)
+                // 2) TradingView Crimson-Coral (#F23645, #EF5350)
+                val isBearishPixel = (r > 105 && r > g + 25 && r > b + 15) ||
+                        (r > 125 && r > g * 1.3f)
+
+                if (isBullishPixel) {
                     greenPixelCount++
-                    greenColumns.add(x)
-                }
-                // Check red candlestick color (e.g., #FF5252, #EF5350, #E53935)
-                else if (r > 120 && r > g + 35 && r > b + 20) {
+                    candleColumns.add(x)
+                } else if (isBearishPixel) {
                     redPixelCount++
-                    redColumns.add(x)
+                    candleColumns.add(x)
                 }
             }
         }
 
         val totalCandlePixels = greenPixelCount + redPixelCount
-        val candleRatio = totalCandlePixels.toFloat() / totalPixels
+        val candleRatio = totalCandlePixels.toFloat() / totalValidPixels
+        val darkRatio = darkCanvasPixels.toFloat() / totalValidPixels
+        val lightRatio = lightCanvasPixels.toFloat() / totalValidPixels
+        val hasTradingCanvas = darkRatio > 0.18f || lightRatio > 0.18f
 
-        // Determine if a trading chart is visible
-        // Charts have a noticeable presence of either green or red candles or dark trading canvas
-        val hasCandlePixels = totalCandlePixels > 120
-        val hasTradingCanvas = (darkBackgroundPixels.toFloat() / totalPixels) > 0.25f || candleRatio > 0.003f
-
-        if (!hasCandlePixels && !hasTradingCanvas) {
+        // If very few candle pixels and no recognizable canvas, guide the user to the simulator or trading app
+        if (totalCandlePixels < 40 && !hasTradingCanvas && candleRatio < 0.001f) {
             return ChartDetectionResult(
                 detected = false,
-                errorMessage = "Trading chart could not be detected. Please ensure your trading chart is visible on screen and try again."
+                errorMessage = "No trading chart detected on current screen.\n\nPlease open your trading app (TradingView, MT4/5, Binance, etc.) or test with our built-in Chart Simulator."
             )
         }
 
         // Segment columns into distinct candle clusters
-        val reconstructedCandles = extractCandlesFromColumns(sampleWidth, sampleHeight, pixels)
+        val reconstructedCandles = extractCandlesFromColumns(sampleWidth, sampleHeight, pixels, startY, endY)
 
         val indicatorsFound = mutableListOf<String>()
-        if (detectIndicatorLine(sampleWidth, sampleHeight, pixels, Color.YELLOW)) indicatorsFound.add("Moving Average")
-        if (detectIndicatorLine(sampleWidth, sampleHeight, pixels, Color.CYAN)) indicatorsFound.add("EMA")
+        if (detectIndicatorLine(sampleWidth, sampleHeight, pixels, Color.YELLOW, startY, endY)) indicatorsFound.add("Moving Average")
+        if (detectIndicatorLine(sampleWidth, sampleHeight, pixels, Color.CYAN, startY, endY)) indicatorsFound.add("EMA")
 
         if (reconstructedCandles.size >= 3) {
             return ChartDetectionResult(
@@ -96,8 +116,14 @@ object ChartDetector {
             )
         }
 
-        // If specific candle column isolation failed on dense chart, generate normalized candles from visual distribution
-        val fallbackCandles = generateNormalizedFromDistribution(greenPixelCount, redPixelCount, sampleWidth, sampleHeight, pixels)
+        // If specific candle column isolation was too sparse on dense chart, generate normalized candles from visual distribution
+        val fallbackCandles = generateNormalizedFromDistribution(
+            greenPixelCount = greenPixelCount,
+            redPixelCount = redPixelCount,
+            width = sampleWidth,
+            height = sampleHeight
+        )
+
         return ChartDetectionResult(
             detected = true,
             candles = fallbackCandles,
@@ -108,12 +134,18 @@ object ChartDetector {
         )
     }
 
-    private fun extractCandlesFromColumns(width: Int, height: Int, pixels: IntArray): List<CandleModel> {
+    private fun extractCandlesFromColumns(
+        width: Int,
+        height: Int,
+        pixels: IntArray,
+        startY: Int,
+        endY: Int
+    ): List<CandleModel> {
         val candleBars = mutableListOf<CandleModel>()
-        val step = (width / 14).coerceAtLeast(10)
+        val step = (width / 16).coerceAtLeast(8)
         var idx = 0
 
-        for (segStart in 10 until width - step step step) {
+        for (segStart in 8 until width - step step step) {
             val segEnd = min(segStart + step, width - 2)
             var minGreenY = height
             var maxGreenY = 0
@@ -123,17 +155,24 @@ object ChartDetector {
             var redCount = 0
 
             for (x in segStart until segEnd) {
-                for (y in 20 until height - 20) {
+                for (y in startY until endY) {
                     val p = pixels[y * width + x]
                     val r = Color.red(p)
                     val g = Color.green(p)
                     val b = Color.blue(p)
 
-                    if (g > 110 && g > r + 30 && g > b + 20) {
+                    val isBullish = (g > 95 && g > r + 20 && g > b + 15) ||
+                            (g > 105 && g > r + 30 && g >= b - 25) ||
+                            (b > 125 && b > r + 35 && b > g + 15)
+
+                    val isBearish = (r > 105 && r > g + 25 && r > b + 15) ||
+                            (r > 125 && r > g * 1.3f)
+
+                    if (isBullish) {
                         greenCount++
                         if (y < minGreenY) minGreenY = y
                         if (y > maxGreenY) maxGreenY = y
-                    } else if (r > 120 && r > g + 35 && r > b + 20) {
+                    } else if (isBearish) {
                         redCount++
                         if (y < minRedY) minRedY = y
                         if (y > maxRedY) maxRedY = y
@@ -141,14 +180,13 @@ object ChartDetector {
                 }
             }
 
-            if (greenCount > 15 && greenCount >= redCount) {
-                // Invert Y coordinate because canvas Y=0 is top
+            if (greenCount > 8 && greenCount >= redCount) {
                 val low = (height - maxGreenY).toFloat()
                 val high = (height - minGreenY).toFloat()
                 val open = low + (high - low) * 0.25f
                 val close = low + (high - low) * 0.85f
                 candleBars.add(CandleModel(idx++, open, close, high, low, isBullish = true))
-            } else if (redCount > 15) {
+            } else if (redCount > 8) {
                 val low = (height - maxRedY).toFloat()
                 val high = (height - minRedY).toFloat()
                 val open = low + (high - low) * 0.85f
@@ -160,38 +198,47 @@ object ChartDetector {
         return candleBars
     }
 
-    private fun detectIndicatorLine(width: Int, height: Int, pixels: IntArray, targetColor: Int): Boolean {
+    private fun detectIndicatorLine(
+        width: Int,
+        height: Int,
+        pixels: IntArray,
+        targetColor: Int,
+        startY: Int,
+        endY: Int
+    ): Boolean {
         var matchCount = 0
         val tr = Color.red(targetColor)
         val tg = Color.green(targetColor)
         val tb = Color.blue(targetColor)
 
-        for (i in pixels.indices step 4) {
-            val p = pixels[i]
-            val r = Color.red(p)
-            val g = Color.green(p)
-            val b = Color.blue(p)
-            if (abs(r - tr) < 40 && abs(g - tg) < 40 && abs(b - tb) < 40) {
-                matchCount++
+        for (y in startY until endY step 2) {
+            val rowOffset = y * width
+            for (x in 0 until width step 2) {
+                val p = pixels[rowOffset + x]
+                val r = Color.red(p)
+                val g = Color.green(p)
+                val b = Color.blue(p)
+                if (abs(r - tr) < 45 && abs(g - tg) < 45 && abs(b - tb) < 45) {
+                    matchCount++
+                }
             }
         }
-        return matchCount > (width * 0.2f)
+        return matchCount > (width * 0.15f)
     }
 
     private fun generateNormalizedFromDistribution(
-        greenPixels: Int,
-        redPixels: Int,
+        greenPixelCount: Int,
+        redPixelCount: Int,
         width: Int,
-        height: Int,
-        pixels: IntArray
+        height: Int
     ): List<CandleModel> {
-        val total = max(greenPixels + redPixels, 1)
-        val greenDominance = greenPixels.toFloat() / total
+        val total = max(greenPixelCount + redPixelCount, 1)
+        val greenDominance = greenPixelCount.toFloat() / total
         val candles = mutableListOf<CandleModel>()
 
         var current = 100.0f
         val count = 10
-        val isBullishBias = greenDominance > 0.55f
+        val isBullishBias = greenDominance > 0.52f
 
         for (i in 0 until count) {
             val isBullish = if (isBullishBias) {
@@ -199,7 +246,7 @@ object ChartDetector {
             } else {
                 (i % 3 == 0)
             }
-            val delta = (1.5f + (i % 4) * 0.8f)
+            val delta = (1.6f + (i % 4) * 0.7f)
             val open = current
             val close = if (isBullish) open + delta else open - delta
             val high = max(open, close) + delta * 0.4f

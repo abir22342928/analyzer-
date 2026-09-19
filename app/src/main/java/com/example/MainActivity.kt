@@ -21,6 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,8 +56,26 @@ enum class AppScreen {
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_OPEN_SCREEN = "EXTRA_OPEN_SCREEN"
+        const val SCREEN_SIMULATOR = "SIMULATOR"
+    }
+
     private lateinit var prefs: SharedPreferences
     private lateinit var historyRepository: HistoryRepository
+    private var screenNavigationCallback: ((AppScreen) -> Unit)? = null
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        checkIntentForScreen(intent)
+    }
+
+    private fun checkIntentForScreen(intent: Intent?) {
+        if (intent?.getStringExtra(EXTRA_OPEN_SCREEN) == SCREEN_SIMULATOR) {
+            screenNavigationCallback?.invoke(AppScreen.SIMULATOR)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,8 +86,22 @@ class MainActivity : ComponentActivity() {
         historyRepository = HistoryRepository(db.analysisHistoryDao())
 
         setContent {
-            var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
+            val initial = if (intent?.getStringExtra(EXTRA_OPEN_SCREEN) == SCREEN_SIMULATOR) {
+                AppScreen.SIMULATOR
+            } else {
+                AppScreen.HOME
+            }
+            var currentScreen by remember { mutableStateOf(initial) }
             val scope = rememberCoroutineScope()
+
+            DisposableEffect(Unit) {
+                screenNavigationCallback = { targetScreen ->
+                    currentScreen = targetScreen
+                }
+                onDispose {
+                    screenNavigationCallback = null
+                }
+            }
 
             var settings by remember {
                 mutableStateOf(
